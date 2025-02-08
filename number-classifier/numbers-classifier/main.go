@@ -5,6 +5,7 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
@@ -24,6 +25,7 @@ type ErrorResponse struct {
 	Error  bool   `json:"error"`
 }
 
+// Check if a number is prime
 func isPrime(n int) bool {
 	if n < 2 {
 		return false
@@ -36,6 +38,7 @@ func isPrime(n int) bool {
 	return true
 }
 
+// Check if a number is perfect
 func isPerfect(n int) bool {
 	sum := 1
 	for i := 2; i <= int(math.Sqrt(float64(n))); i++ {
@@ -49,6 +52,7 @@ func isPerfect(n int) bool {
 	return sum == n && n != 1
 }
 
+// Check if a number is an Armstrong number
 func isArmstrong(n int) bool {
 	sum, temp, digits := 0, n, 0
 	for temp > 0 {
@@ -64,6 +68,7 @@ func isArmstrong(n int) bool {
 	return sum == n
 }
 
+// Calculate the digit sum of a number
 func digitSum(n int) int {
 	sum := 0
 	for n > 0 {
@@ -73,15 +78,38 @@ func digitSum(n int) int {
 	return sum
 }
 
+// Convert float to int if needed
+func parseNumber(numberStr string) (int, bool) {
+	// Handle negative and float values
+	if strings.Contains(numberStr, ".") {
+		floatVal, err := strconv.ParseFloat(numberStr, 64)
+		if err == nil {
+			return int(floatVal), true
+		}
+	}
+	
+	// Handle normal integer values
+	n, err := strconv.Atoi(numberStr)
+	if err != nil {
+		return 0, false
+	}
+	return n, true
+}
+
+// Classify a number
 func classifyNumber(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
 	numberStr := r.URL.Query().Get("number")
 	if numberStr == "" {
+		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(ErrorResponse{Number: "", Error: true})
 		return
 	}
 
-	n, err := strconv.Atoi(numberStr)
-	if err != nil {
+	n, valid := parseNumber(numberStr)
+	if !valid {
+		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(ErrorResponse{Number: numberStr, Error: true})
 		return
 	}
@@ -95,7 +123,7 @@ func classifyNumber(w http.ResponseWriter, r *http.Request) {
 	if isArmstrong(n) {
 		properties = append(properties, "armstrong")
 	}
-	
+
 	response := Response{
 		Number:     n,
 		IsPrime:    isPrime(n),
@@ -105,7 +133,7 @@ func classifyNumber(w http.ResponseWriter, r *http.Request) {
 		FunFact:    strconv.Itoa(n) + " is an interesting number!",
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)
 }
 
@@ -114,5 +142,6 @@ func main() {
 	r.HandleFunc("/api/classify-number", classifyNumber).Methods("GET")
 
 	handler := cors.AllowAll().Handler(r)
+
 	http.ListenAndServe(":8000", handler)
 }
